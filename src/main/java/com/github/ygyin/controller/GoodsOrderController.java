@@ -1,6 +1,7 @@
 package com.github.ygyin.controller;
 
 import com.github.ygyin.service.GoodsOrderService;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,22 +10,25 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.util.concurrent.TimeUnit;
+
 
 @Controller
 public class GoodsOrderController {
     @Autowired
     private GoodsOrderService orderService;
-
-
+    // 10 request will be released per second
+    RateLimiter limiter = RateLimiter.create(10);
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderController.class);
 
 
+/*
     /**
      * 下单接口：该接口可能会导致超卖
      *
      * @param goodsId
      * @return String of id
-     */
+     * /
     @RequestMapping("/createWrongOrder/{goodsId}")
     @ResponseBody
     public String createWrongOrder(@PathVariable int goodsId) {
@@ -36,5 +40,49 @@ public class GoodsOrderController {
             MY_LOG.error("Exception: ", e);
         }
         return String.valueOf(id);
+    }
+*/
+
+    @RequestMapping("/createOccOrder/{goodsId}")
+    @ResponseBody
+    public String createOccOrder(@PathVariable int goodsId) {
+        // 阻塞式获取令牌：请求进来后，若令牌桶内没有足够令牌，阻塞并等待令牌发放
+        // MY_LOG.info("Waiting for a while: " + limiter.acquire());
+        // 非阻塞式：请求进来后，若令牌桶内没有足够令牌，会尝试等待设置好的时间后看尝试能不能拿到令牌
+        //          若不能拿到，直接返回抢购失败
+        if (!limiter.tryAcquire(1000, TimeUnit.MILLISECONDS)) {
+            MY_LOG.warn("Unfortunately, you've been cut off");
+            return "Purchase failed, run out of stock";
+        }
+        int stock;
+        try {
+            stock = orderService.createOccOrder(goodsId);
+            // why stock = balance?
+            MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
+        } catch (Exception e) {
+            MY_LOG.error("Purchase failed: [{}]", e.getMessage());
+            return "Purchase failed, run out of stock";
+        }
+        return String.format("Purchase successfully, remain stock: %d", stock);
+    }
+
+    /**
+     * Use "for update" with transaction to update the stock
+     *
+     * @param goodsId
+     * @return
+     */
+    @RequestMapping("/createPccOrder/{goodsId}")
+    @ResponseBody
+    public String createPccOrder(@PathVariable int goodsId) {
+        int stock = 0;
+        try {
+            stock = orderService.createPccOrder(goodsId);
+            MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
+        } catch (Exception e) {
+            MY_LOG.error("Purchase failed: [{}]", e.getMessage());
+            return "Purchase failed, run out of stock";
+        }
+        return String.format("Purchase successfully, remain stock: %d", stock);
     }
 }

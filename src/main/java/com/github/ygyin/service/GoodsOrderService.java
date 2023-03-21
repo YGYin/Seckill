@@ -10,5 +10,14 @@ public interface GoodsOrderService {
      */
     public int createWrongOrder(int goodsId);
 
+    /**
+     * Create a proper order (with optimistic lock)
+     *
+     * @param goodsId
+     * @return The number of goods remain
+     * @throws Exception
+     */
+    int createOccOrder(int goodsId) throws Exception;
 
+    int createPccOrder(int goodsId);
 }

@@ -12,10 +12,26 @@ public interface GoodsStockService {
     GoodsStock getGoodsStockById(int goodsId);
 
     /**
-     * Update the info of goods stock in database (without optimistic lock)
+     * Update the info of goods stock in database(without optimistic lock)
      *
      * @param stock
      * @return Affected row
      */
     int updateGoodsStockById(GoodsStock stock);
+
+    /**
+     * Update the stock info in database(within optimistic lock)
+     *
+     * @param stock
+     * @return
+     */
+    int updateStockByOcc(GoodsStock stock);
+
+    /**
+     * Use goods ID to get the stock info of the goods(For Update)
+     *
+     * @param goodsId
+     * @return
+     */
+    GoodsStock getGoodsStockByIdForUpdate(int goodsId);
 }

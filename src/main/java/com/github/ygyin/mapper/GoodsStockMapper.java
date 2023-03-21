@@ -16,7 +16,7 @@ public interface GoodsStockMapper {
 
     GoodsStock selectByPrimaryKeyForUpdate(Integer goodsId);
 
-    int updateByOptimistic(GoodsStock record);
+    int updateByOcc(GoodsStock record);
 
     int updateByPrimaryKey(GoodsStock record);
 

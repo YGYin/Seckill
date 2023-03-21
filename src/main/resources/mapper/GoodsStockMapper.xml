@@ -19,6 +19,18 @@
         where goods_id = #{goodsId,jdbcType=INTEGER}
     </select>
 
+    <select id="selectByPrimaryKeyForUpdate" resultMap="StockResultMap" parameterType="java.lang.Integer">
+        select `goods_id`,
+               `goods_name`,
+               `balance`,
+               `sales`,
+               `ver`
+        from goods_stock
+        where goods_id = #{goodsId,jdbcType=INTEGER}
+            FOR
+        UPDATE
+    </select>
+
     <update id="updateByPrimaryKeySelective" parameterType="com.github.ygyin.entity.GoodsStock">
         update goods_stock
         <set>
@@ -36,5 +48,23 @@
             </if>
         </set>
         where goods_id = #{goodsId,jdbcType=INTEGER}
+    </update>
+
+    <!--    <update id="updateByOcc" parameterType="com.github.ygyin.entity.GoodsStock">-->
+    <!--        update goods_stock-->
+    <!--        <set>-->
+    <!--            sales = sales + 1,-->
+    <!--            ver = ver + 1,-->
+    <!--        </set>-->
+    <!--        WHERE goods_id = #{goodsId,jdbcType=INTEGER}-->
+    <!--        AND ver = #{ver,jdbcType=INTEGER}-->
+    <!--    </update>-->
+    <update id="updateByOcc" parameterType="com.github.ygyin.entity.GoodsStock">
+        update goods_stock
+        <set>
+            sales = sales + 1,
+        </set>
+        WHERE goods_id = #{goodsId,jdbcType=INTEGER}
+        AND sales = #{sales,jdbcType=INTEGER}
     </update>
 </mapper>
