@@ -132,4 +132,28 @@ public class GoodsOrderController {
         }
         return String.format("Purchase successfully, remain stock: %d", stock);
     }
+
+    @RequestMapping(value = "/createOrderWithHashAndAccessLimit", method = {RequestMethod.GET})
+    @ResponseBody
+    public String createOrderWithHashAndAccessLimit(@RequestParam(value = "userId") Integer userId,
+                                                    @RequestParam(value = "goodsId") Integer goodsId,
+                                                    @RequestParam(value = "hash") String hash) {
+        // The number of remain stock
+        int stock;
+        try {
+            Long accessNum = userService.addUserAccess(userId);
+            MY_LOG.info("Current access times of the user: [{}]", accessNum);
+            boolean isBanned = userService.getUserStatus(userId);
+            if (isBanned)
+                return "Purchase failed. Exceeding frequency limit";
+
+            stock = orderService.createHashOrder(userId, goodsId, hash);
+            MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
+        } catch (Exception e) {
+            MY_LOG.error("Purchase failed: [{}]", e.getMessage());
+            return e.getMessage();
+        }
+        return String.format("Purchase successfully, remain stock: %d", stock);
+    }
 }
+

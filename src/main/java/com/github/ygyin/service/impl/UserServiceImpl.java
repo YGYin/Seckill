@@ -20,6 +20,8 @@ import java.util.concurrent.TimeUnit;
 public class UserServiceImpl implements UserService {
 
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderService.class);
+    private static final int ALLOW_ACCESS_NUM = 10;
+    private static final boolean IS_BANNED = true;
     @Autowired
     private UserMapper userMapper;
     @Autowired
@@ -56,5 +58,23 @@ public class UserServiceImpl implements UserService {
         redisTemplate.opsForValue().set(hashKey, md5Hash, 1800, TimeUnit.SECONDS);
         MY_LOG.info("Redis writing: [{}] [{}]", hashKey, md5Hash);
         return md5Hash;
+    }
+
+    @Override
+    public Long addUserAccess(Integer userId) throws Exception {
+        String userLimitKey = RedisSaltKey.USER_LIMIT_KEY.getKey() + "_" + userId;
+        redisTemplate.opsForValue().setIfAbsent(userLimitKey, "0", 1800, TimeUnit.SECONDS);
+        return redisTemplate.opsForValue().increment(userLimitKey);
+    }
+
+    @Override
+    public boolean getUserStatus(Integer userId) {
+        String userLimitKey = RedisSaltKey.USER_LIMIT_KEY.getKey() + "_" + userId;
+        String accessNum = redisTemplate.opsForValue().get(userLimitKey);
+        if (accessNum == null) {
+            MY_LOG.error("The user does not have hash application history, it may have exception");
+            return IS_BANNED;
+        }
+        return Integer.parseInt(accessNum) > ALLOW_ACCESS_NUM;
     }
 }
