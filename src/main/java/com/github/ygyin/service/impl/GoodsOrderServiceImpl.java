@@ -2,12 +2,16 @@ package com.github.ygyin.service.impl;
 
 import com.github.ygyin.entity.GoodsOrder;
 import com.github.ygyin.entity.GoodsStock;
+import com.github.ygyin.entity.User;
 import com.github.ygyin.mapper.GoodsOrderMapper;
+import com.github.ygyin.mapper.UserMapper;
 import com.github.ygyin.service.GoodsOrderService;
 import com.github.ygyin.service.GoodsStockService;
+import com.github.ygyin.utils.RedisSaltKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +23,10 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     private GoodsStockService stockService;
     @Autowired
     private GoodsOrderMapper orderMapper;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+    @Autowired
+    private UserMapper userMapper;
 
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderService.class);
 
@@ -37,7 +45,8 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         // check the stock if remained
         GoodsStock stock = reviewStock(goodsId);
         // Use optimistic lock to update the stock
-        goodsSaleWithOcc(stock);
+        if (!goodsSaleWithOcc(stock))
+            throw new RuntimeException("Version is outdated, sale updated with OCC failed");
         // Create order
         int order = createOrder(stock);
         return stock.getBalance() - (stock.getSales() + 1);
@@ -58,9 +67,59 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         return stock.getBalance() - stock.getSales();
     }
 
+    @Override
+    public int createHashOrder(Integer userId, Integer goodsId, String hash) throws Exception {
+        // Verify whether the time is in seckill by yourself
+        MY_LOG.info("Please make sure that it is in seckill time");
+
+        String hashKey = RedisSaltKey.HASH_KEY.getKey() + "_" + userId + "_" + goodsId;
+        String hashInRedis = redisTemplate.opsForValue().get(hashKey);
+        if (!hash.equals(hashInRedis))
+            throw new Exception("Hash value is not as the same as it in Redis");
+        MY_LOG.info("Hash value verified successfully");
+
+        // Verify user's validity
+        User user = userMapper.selectByPrimaryKey(userId);
+        if (user == null)
+            throw new Exception("User not found");
+        MY_LOG.info("User info: [{}]", user);
+
+        // Verify goods' validity
+        GoodsStock stock = stockService.getGoodsStockById(goodsId);
+        if (stock == null)
+            throw new Exception("Goods not found");
+        MY_LOG.info("Goods info: [{}]", stock);
+
+        // Update the stock by optimistic lock, sales ++
+        if (!goodsSaleWithOcc(stock))
+            throw new RuntimeException("Version is outdated, sale updated with OCC failed");
+        MY_LOG.info("Update the stock with OCC successfully");
+
+        // Create the order
+        // todo 此处 stock 为乐观锁更新库存前获取的对象，导致最后返回库存剩余数目时需要加 1
+        createOrderWithInfoInDB(userId, stock);
+        MY_LOG.info("Create order with user info successfully");
+
+        return stock.getBalance() - (stock.getSales() + 1);
+    }
 
     /**
-     * Only Create the order? (without user info)
+     * Create the order with user info and write to the DB
+     *
+     * @param userId
+     * @param stock
+     * @return
+     */
+    private int createOrderWithInfoInDB(Integer userId, GoodsStock stock) {
+        GoodsOrder order = new GoodsOrder();
+        order.setUserId(userId);
+        order.setGoodsId(stock.getGoodsId());
+        order.setGoodsName(stock.getGoodsName());
+        return orderMapper.insertSelective(order);
+    }
+
+    /**
+     * Only Create the order (without user info)
      *
      * @param stock
      * @return The stock of goods
@@ -103,11 +162,11 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         stockService.updateGoodsStockById(stock);
     }
 
-    private void goodsSaleWithOcc(GoodsStock stock) {
+    private boolean goodsSaleWithOcc(GoodsStock stock) {
         MY_LOG.info("Query DB and try to update the stock");
         int sales = stockService.updateStockByOcc(stock);
         if (sales == 0)
             throw new RuntimeException("并发更新库存失败，ver 不匹配");
-//        return sales!=0;
+        return sales != 0;
     }
 }

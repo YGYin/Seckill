@@ -20,4 +20,6 @@ public interface GoodsOrderService {
     int createOccOrder(int goodsId) throws Exception;
 
     int createPccOrder(int goodsId);
+
+    int createHashOrder(Integer userId, Integer goodsId, String hash) throws Exception;
 }

@@ -1,14 +1,13 @@
 package com.github.ygyin.controller;
 
 import com.github.ygyin.service.GoodsOrderService;
+import com.github.ygyin.service.UserService;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 public class GoodsOrderController {
     @Autowired
     private GoodsOrderService orderService;
+    @Autowired
+    private UserService userService;
     // 10 request will be released per second
     RateLimiter limiter = RateLimiter.create(10);
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderController.class);
@@ -82,6 +83,52 @@ public class GoodsOrderController {
         } catch (Exception e) {
             MY_LOG.error("Purchase failed: [{}]", e.getMessage());
             return "Purchase failed, run out of stock";
+        }
+        return String.format("Purchase successfully, remain stock: %d", stock);
+    }
+
+    /**
+     * Get validation hash value
+     *
+     * @param userId
+     * @param goodsId
+     * @return
+     */
+    @RequestMapping(value = "/getHash", method = {RequestMethod.GET})
+    @ResponseBody
+    public String getHash(@RequestParam(value = "userId") Integer userId,
+                          @RequestParam(value = "goodsId") Integer goodsId) {
+        String hash;
+        try {
+            hash = userService.getHash(userId, goodsId);
+        } catch (Exception e) {
+            MY_LOG.error("Get validation hash failed, reason: [{}]", e.getMessage());
+            return "Get validation hash failed";
+        }
+        return String.format("Get validation hash successfully: %s", hash);
+    }
+
+    /**
+     * Use the validation hash value to create an order
+     *
+     * @param userId
+     * @param goodsId
+     * @param hash
+     * @return
+     */
+    @RequestMapping(value = "/createOrderWithHash", method = {RequestMethod.GET})
+    @ResponseBody
+    public String createOrderWithHash(@RequestParam(value = "userId") Integer userId,
+                                      @RequestParam(value = "goodsId") Integer goodsId,
+                                      @RequestParam(value = "hash") String hash) {
+        int stock;
+
+        try {
+            stock = orderService.createHashOrder(userId, goodsId, hash);
+            MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
+        } catch (Exception e) {
+            MY_LOG.error("Purchase failed: [{}]", e.getMessage());
+            return e.getMessage();
         }
         return String.format("Purchase successfully, remain stock: %d", stock);
     }

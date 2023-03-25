@@ -21,6 +21,14 @@ public class User {
 
     private String username;
 
+    public User(Integer userId, String username) {
+        this.userId = userId;
+        this.username = username;
+    }
+
+    public User() {
+    }
+
     @Override
     public String toString() {
         return "User{" +

@@ -17,7 +17,7 @@ spring:
 
   redis:
     host: localhost
-    port: 6389
+    port: 6379
     database: 0
 
   rabbitmq:

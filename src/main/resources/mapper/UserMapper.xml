@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.github.ygyin.mapper.UserMapper">
+    <resultMap id="UserResultMap" type="com.github.ygyin.entity.User">
+        <constructor>
+            <idArg column="user_id" jdbcType="INTEGER" javaType="int"/>
+            <arg column="username" jdbcType="VARCHAR" javaType="String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectByPrimaryKey" resultMap="UserResultMap" parameterType="java.lang.Integer">
+        select user_id,
+               username
+        from user
+        where user_id = #{userId, jdbcType=INTEGER}
+    </select>
+
+</mapper>
