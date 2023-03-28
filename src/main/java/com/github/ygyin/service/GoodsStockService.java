@@ -12,6 +12,23 @@ public interface GoodsStockService {
     GoodsStock getGoodsStockById(int goodsId);
 
     /**
+     * Query balance: Through the database
+     *
+     * @param goodsId
+     * @return The number of remaining balance
+     */
+    int getStockRemainByDB(int goodsId);
+
+    /**
+     * Query balance: Through the cache
+     *
+     * @param goodsId
+     * @return The number of remaining balance
+     */
+    Integer getStockRemainByCache(int goodsId);
+
+
+    /**
      * Update the info of goods stock in database(without optimistic lock)
      *
      * @param stock
@@ -34,4 +51,6 @@ public interface GoodsStockService {
      * @return
      */
     GoodsStock getGoodsStockByIdForUpdate(int goodsId);
+
+    void setStockRemainToCache(int goodsId, int stockRemain);
 }

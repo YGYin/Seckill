@@ -28,7 +28,7 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     @Autowired
     private UserMapper userMapper;
 
-    private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderService.class);
+    private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderServiceImpl.class);
 
     @Override
     public int createWrongOrder(int goodsId) {

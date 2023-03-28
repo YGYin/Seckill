@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class UserServiceImpl implements UserService {
 
-    private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderService.class);
+    private static final Logger MY_LOG = LoggerFactory.getLogger(UserServiceImpl.class);
     private static final int ALLOW_ACCESS_NUM = 10;
     private static final boolean IS_BANNED = true;
     @Autowired
