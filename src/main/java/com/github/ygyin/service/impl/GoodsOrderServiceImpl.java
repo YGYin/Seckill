@@ -63,7 +63,7 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         // update the stock
         goodsSale(stock);
         // create the order
-        int id = createOrder(stock);
+        createOrder(stock);
         return stock.getBalance() - stock.getSales();
     }
 

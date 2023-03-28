@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.awt.geom.GeneralPath;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -61,6 +60,13 @@ public class GoodsStockServiceImpl implements GoodsStockService {
         String hashKey = RedisSaltKey.STOCK_REMAIN_KEY.getKey() + "_" + goodsId;
         redisTemplate.opsForValue().set(hashKey, String.valueOf(stockRemain), 1800, TimeUnit.SECONDS);
         MY_LOG.info("Writing the remaining stock into Redis: [{}] [{}]", hashKey, stockRemain);
+    }
+
+    @Override
+    public void deleteStockCache(int goodsId) {
+        String hashKey = RedisSaltKey.STOCK_REMAIN_KEY.getKey() + "_" + goodsId;
+        boolean delRes = Boolean.TRUE.equals(redisTemplate.delete(hashKey));
+        MY_LOG.info("DELETE [{}]: The remaining stock cache of goods [{}]", delRes, goodsId);
     }
 
 

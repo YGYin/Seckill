@@ -1,15 +1,19 @@
 package com.github.ygyin.controller;
 
 import com.github.ygyin.service.GoodsOrderService;
+import com.github.ygyin.service.GoodsStockService;
 import com.github.ygyin.service.UserService;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
+
+import static com.github.ygyin.config.RabbitMqConfig.DELETE_QUEUE;
 
 
 @Controller
@@ -18,6 +22,11 @@ public class GoodsOrderController {
     private GoodsOrderService orderService;
     @Autowired
     private UserService userService;
+    @Autowired
+    private AmqpTemplate mqTemplate;
+
+    @Autowired
+    private GoodsStockService stockService;
     // 10 request will be released per second
     RateLimiter limiter = RateLimiter.create(10);
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderController.class);
@@ -121,6 +130,7 @@ public class GoodsOrderController {
     public String createOrderWithHash(@RequestParam(value = "userId") Integer userId,
                                       @RequestParam(value = "goodsId") Integer goodsId,
                                       @RequestParam(value = "hash") String hash) {
+        // The number of remaining stock
         int stock;
 
         try {
@@ -138,7 +148,7 @@ public class GoodsOrderController {
     public String createOrderWithHashAndAccessLimit(@RequestParam(value = "userId") Integer userId,
                                                     @RequestParam(value = "goodsId") Integer goodsId,
                                                     @RequestParam(value = "hash") String hash) {
-        // The number of remain stock
+        // The number of remaining stock
         int stock;
         try {
             Long accessNum = userService.addUserAccess(userId);
@@ -154,6 +164,47 @@ public class GoodsOrderController {
             return e.getMessage();
         }
         return String.format("Purchase successfully, remain stock: %d", stock);
+    }
+
+
+    /**
+     * Update the DB first, then delete the cache, then retry to delete the cache
+     *
+     * @param goodsId
+     * @return
+     */
+    @RequestMapping("/createOrderWithCache/{goodsId}")
+    @ResponseBody
+    public String createOrderWithCache(@PathVariable int goodsId) {
+        // The number of remaining stock
+        int stock;
+
+        try {
+            // TODO: It may can change the method
+            stock = orderService.createPccOrder(goodsId);
+            MY_LOG.info("Finished the transaction of creating an order");
+            // Delete the remaining stock cache
+            stockService.deleteStockCache(goodsId);
+            // TODO: Delete the cache again after a specified delay
+            // ...
+            // If the 2nd delete doesn't success, use MQ to delete the cache
+            sendMsgToDeleteCache(String.valueOf(goodsId));
+        } catch (Exception e) {
+            MY_LOG.error("Purchase failed [{}]", e.getMessage());
+            return "Purchase failed, run out of remaining stock";
+        }
+        MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
+        return String.format("Purchase successfully, remain stock: %d", stock);
+    }
+
+    /**
+     * Send msg to MQ DELETE_QUEUE
+     *
+     * @param msg
+     */
+    private void sendMsgToDeleteCache(String msg) {
+        MY_LOG.info("通知消息队列开始再次尝试删除缓存: [{}]", msg);
+        mqTemplate.convertAndSend(DELETE_QUEUE, msg);
     }
 }
 

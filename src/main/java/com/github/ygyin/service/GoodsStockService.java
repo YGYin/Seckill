@@ -52,5 +52,18 @@ public interface GoodsStockService {
      */
     GoodsStock getGoodsStockByIdForUpdate(int goodsId);
 
+    /**
+     * Writing the remaining stock into Redis cache
+     *
+     * @param goodsId
+     * @param stockRemain
+     */
     void setStockRemainToCache(int goodsId, int stockRemain);
+
+    /**
+     * Delete the cache of remaining stock of goods
+     *
+     * @param goodsId
+     */
+    void deleteStockCache(int goodsId);
 }
