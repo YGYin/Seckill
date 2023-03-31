@@ -33,6 +33,10 @@ public class GoodsOrderController {
     RateLimiter limiter = RateLimiter.create(10);
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderController.class);
 
+    private static final String SECKILL_SUCCEED = "Seckill Request Succeed";
+    private static final String SECKILL_FAIL = "Seckill Request failed, server is in busy...";
+    private static final String OUT_OF_STOCK = "Seckill Request failed, run out of remaining stock";
+
 
 /*
     /**
@@ -183,7 +187,7 @@ public class GoodsOrderController {
         int stock;
 
         try {
-            // TODO: It may can change the method
+            // TODO: It may change the method
             stock = orderService.createPccOrder(goodsId);
             MY_LOG.info("Finished the transaction of creating an order");
             // Delete the remaining stock cache
@@ -227,7 +231,7 @@ public class GoodsOrderController {
             MY_LOG.info("The user has not snapped up any items. To check if there is any stock in the cache");
             Integer stockRemain = stockService.getStockRemain(goodsId);
             if (stockRemain == 0)
-                return "Seckill Request failed, run out of remaining stock";
+                return OUT_OF_STOCK;
 
             // It has remaining stock
             // 将 userId & goodId 封装为消息体传给 MQ 处理
@@ -237,10 +241,10 @@ public class GoodsOrderController {
             jsonObj.put("userId", userId);
             jsonObj.put("goodsId", goodsId);
             sendMsgToOrderQueue(jsonObj.toJSONString());
-            return "Seckill Request Succeed";
+            return SECKILL_SUCCEED;
         } catch (Exception e) {
             MY_LOG.error("API createOrderWithMQ: Asynchronously processing order exceptions", e);
-            return "Seckill Request failed, server is in busy...";
+            return SECKILL_FAIL;
         }
     }
 

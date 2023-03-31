@@ -67,6 +67,15 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         return stock.getBalance() - stock.getSales();
     }
 
+    /**
+     * With OCC
+     *
+     * @param userId
+     * @param goodsId
+     * @param hash
+     * @return
+     * @throws Exception
+     */
     @Override
     public int createHashOrder(Integer userId, Integer goodsId, String hash) throws Exception {
         // Verify whether the time is in seckill by yourself
@@ -172,7 +181,7 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
      * Only Create the order (without user info)
      *
      * @param stock
-     * @return The stock of goods
+     * @return The stock of goods?
      */
     private int createOrder(GoodsStock stock) {
         GoodsOrder order = new GoodsOrder();
@@ -203,7 +212,7 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     }
 
     /**
-     * Goods are sale, refresh the stock
+     * Goods are sale, update the stock
      *
      * @param stock
      */
