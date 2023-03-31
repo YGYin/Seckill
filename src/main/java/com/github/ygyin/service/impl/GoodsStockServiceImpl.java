@@ -39,6 +39,19 @@ public class GoodsStockServiceImpl implements GoodsStockService {
         return stockRemain != null ? Integer.parseInt(stockRemain) : null;
     }
 
+    @Override
+    public Integer getStockRemain(int goodsId) {
+        Integer stock = getStockRemainByCache(goodsId);
+        if (stock != null)
+            MY_LOG.info("Get the remaining stock in cache: [{}]", stock);
+        else {
+            stock = getStockRemainByDB(goodsId);
+            MY_LOG.info("Cache is not hit. Query the DB then write the remaining stock into cache");
+            setStockRemainToCache(goodsId, stock);
+        }
+        return stock;
+    }
+
 
     @Override
     public int updateGoodsStockById(GoodsStock stock) {

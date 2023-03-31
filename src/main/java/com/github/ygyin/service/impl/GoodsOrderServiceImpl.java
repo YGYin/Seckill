@@ -48,7 +48,7 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         if (!goodsSaleWithOcc(stock))
             throw new RuntimeException("Version is outdated, sale updated with OCC failed");
         // Create order
-        int order = createOrder(stock);
+        createOrder(stock);
         return stock.getBalance() - (stock.getSales() + 1);
     }
 
@@ -103,12 +103,46 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         return stock.getBalance() - (stock.getSales() + 1);
     }
 
+    @Override
+    public Boolean checkOrderInCache(Integer userId, Integer goodsId) throws Exception {
+        String hashKey = RedisSaltKey.ORDER_EXISTED_KEY.getKey() + "_" + goodsId;
+        MY_LOG.info("Check whether User ID [{}] has snapped up the goods ID [{}]. " +
+                "check hash key: [{}]", userId, goodsId, hashKey);
+        return redisTemplate.opsForSet().isMember(hashKey, userId.toString());
+    }
+
+    @Override
+    public void createOrderByMQ(Integer userId, Integer goodsId) throws Exception {
+        GoodsStock stock;
+        stock = reviewStock(goodsId);
+
+        // Update the remaining stock by occ
+        boolean stockIsUpdate = goodsSaleWithOcc(stock);
+        if (!stockIsUpdate) {
+            MY_LOG.warn("Failed to reduce the remaining stock, it was ran out.");
+            return;
+        }
+
+        MY_LOG.info("Successfully reduce the stock, the remaining stock: [{}]", stock.getBalance() - stock.getSales() - 1);
+        // Delete the cache of remaining stock
+        stockService.deleteStockCache(goodsId);
+        MY_LOG.info("Delete the cache of stock");
+
+        // Create Order
+        MY_LOG.info("Write the order into DB");
+        createOrderWithInfoInDB(userId, stock);
+        MY_LOG.info("Write the order into cache");
+        createOrderWithInfoInCache(userId, stock);
+        MY_LOG.info("Order Successfully");
+
+    }
+
     /**
      * Create the order with user info and write to the DB
      *
      * @param userId
      * @param stock
-     * @return
+     * @return Affected rows
      */
     private int createOrderWithInfoInDB(Integer userId, GoodsStock stock) {
         GoodsOrder order = new GoodsOrder();
@@ -116,6 +150,22 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
         order.setGoodsId(stock.getGoodsId());
         order.setGoodsName(stock.getGoodsName());
         return orderMapper.insertSelective(order);
+    }
+
+    /**
+     * Create the order with user info and write to the cache
+     * key: salt + "_" + goodsId
+     * value: userId
+     *
+     * @param userId
+     * @param stock
+     * @return
+     */
+    private Long createOrderWithInfoInCache(Integer userId, GoodsStock stock) {
+        String goodsId = stock.getGoodsId().toString();
+        String hashKey = RedisSaltKey.ORDER_EXISTED_KEY.getKey() + "_" + goodsId;
+        MY_LOG.info("Write the order dataset in cache: [{}] [{}]", hashKey, userId.toString());
+        return redisTemplate.opsForSet().add(hashKey, userId.toString());
     }
 
     /**
@@ -165,8 +215,8 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     private boolean goodsSaleWithOcc(GoodsStock stock) {
         MY_LOG.info("Query DB and try to update the stock");
         int sales = stockService.updateStockByOcc(stock);
-        if (sales == 0)
-            throw new RuntimeException("并发更新库存失败，ver 不匹配");
+//        if (sales == 0)
+//            throw new RuntimeException("并发更新库存失败，ver 不匹配");
         return sales != 0;
     }
 }

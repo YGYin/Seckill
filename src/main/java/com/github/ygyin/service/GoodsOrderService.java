@@ -22,4 +22,25 @@ public interface GoodsOrderService {
     int createPccOrder(int goodsId);
 
     int createHashOrder(Integer userId, Integer goodsId, String hash) throws Exception;
+
+    /**
+     * Check whether the user already has an order in the cache
+     *
+     * @param userId
+     * @param goodsId
+     * @return
+     * @throws Exception
+     */
+    Boolean checkOrderInCache(Integer userId, Integer goodsId) throws Exception;
+
+    /**
+     * Create a proper order: Double-check the remaining stock
+     * Order with OCC
+     * Update the order info to cache
+     *
+     * @param userId
+     * @param goodsId
+     * @throws Exception
+     */
+    void createOrderByMQ(Integer userId, Integer goodsId) throws Exception;
 }

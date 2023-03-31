@@ -12,20 +12,30 @@ public interface GoodsStockService {
     GoodsStock getGoodsStockById(int goodsId);
 
     /**
-     * Query balance: Through the database
+     * Query remaining stock: Through the database
      *
      * @param goodsId
-     * @return The number of remaining balance
+     * @return The number of remaining stock
      */
     int getStockRemainByDB(int goodsId);
 
     /**
-     * Query balance: Through the cache
+     * remaining stock: Through the cache
      *
      * @param goodsId
-     * @return The number of remaining balance
+     * @return The number of remaining stock
      */
     Integer getStockRemainByCache(int goodsId);
+
+    /**
+     * Query remaining stock: Through the cache
+     * Hit: Return the remaining stock
+     * Not hit: Query the database and write the result into cache, then return it
+     *
+     * @param goodsId
+     * @return The number of remaining stock
+     */
+    Integer getStockRemain(int goodsId);
 
 
     /**

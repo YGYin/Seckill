@@ -1,5 +1,6 @@
 package com.github.ygyin.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.github.ygyin.service.GoodsOrderService;
 import com.github.ygyin.service.GoodsStockService;
 import com.github.ygyin.service.UserService;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.ygyin.config.RabbitMqConfig.DELETE_QUEUE;
+import static com.github.ygyin.config.RabbitMqConfig.ORDER_QUEUE;
 
 
 @Controller
@@ -168,7 +170,8 @@ public class GoodsOrderController {
 
 
     /**
-     * Update the DB first, then delete the cache, then retry to delete the cache
+     * Update the DB first, then delete the cache,
+     * then retry to delete the cache
      *
      * @param goodsId
      * @return
@@ -195,6 +198,60 @@ public class GoodsOrderController {
         }
         MY_LOG.info("Purchase successfully, remain stock: [{}]", stock);
         return String.format("Purchase successfully, remain stock: %d", stock);
+    }
+
+    /**
+     * 1. Check if the user has already placed an order in the cache
+     * 2. If not snapped up, check the cache for remaining stock
+     * 3. If cache miss, check the DB for remaining stock
+     * 4. Has remaining stock, send userId and goodsId to MQ to deal with it
+     *
+     * @param userId
+     * @param goodsId
+     * @return
+     */
+    @RequestMapping(value = "createOrderWithMQ", method = {RequestMethod.GET})
+    @ResponseBody
+    public String createOrderWithMQ(@RequestParam(value = "userId") Integer userId,
+                                    @RequestParam(value = "goodsId") Integer goodsId) {
+        try {
+            // Check if the user has already placed an order in the cache
+//            Boolean orderExist = orderService.checkOrderInCache(userId, goodsId);
+//            if (orderExist != null && orderExist) {
+//                MY_LOG.info("The user has already snapped it up");
+//                return "The user has already snapped it up";
+//            }
+
+            // Not snapped up, check whether the remaining stock is in the cache
+            // If not, it will check the DB for remaining stock
+            MY_LOG.info("The user has not snapped up any items. To check if there is any stock in the cache");
+            Integer stockRemain = stockService.getStockRemain(goodsId);
+            if (stockRemain == 0)
+                return "Seckill Request failed, run out of remaining stock";
+
+            // It has remaining stock
+            // 将 userId & goodId 封装为消息体传给 MQ 处理
+            // 此时有库存为查缓存中的结论，可能有脏数据，MQ 会再次查表验证库存
+            MY_LOG.info("Goods [{}] has remaining stock: [{}]", goodsId, stockRemain);
+            JSONObject jsonObj = new JSONObject();
+            jsonObj.put("userId", userId);
+            jsonObj.put("goodsId", goodsId);
+            sendMsgToOrderQueue(jsonObj.toJSONString());
+            return "Seckill Request Succeed";
+        } catch (Exception e) {
+            MY_LOG.error("API createOrderWithMQ: Asynchronously processing order exceptions", e);
+            return "Seckill Request failed, server is in busy...";
+        }
+    }
+
+    /**
+     * Send msg to MQ ORDER_QUEUE
+     *
+     * @param msg
+     */
+    private void sendMsgToOrderQueue(String msg) {
+        MY_LOG.info("通知消息队列开始下单: [{}]", msg);
+        mqTemplate.convertAndSend(ORDER_QUEUE, msg);
     }
 
     /**
