@@ -4,12 +4,9 @@ import com.github.ygyin.service.GoodsStockService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
-@Controller
+@RestController
 public class GoodsStockController {
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsStockController.class);
     @Autowired
@@ -21,8 +18,7 @@ public class GoodsStockController {
      * @param goodsId
      * @return
      */
-    @RequestMapping("/getRemainStockByDB/{goodsId}")
-    @ResponseBody
+    @GetMapping("/getRemainStockByDB/{goodsId}")
     public String getRemainStockByDB(@PathVariable int goodsId) {
         int stock;
         try {
@@ -45,8 +41,7 @@ public class GoodsStockController {
      * @param goodsId
      * @return
      */
-    @RequestMapping("/getRemainStockByCache/{goodsId}")
-    @ResponseBody
+    @GetMapping("/getRemainStockByCache/{goodsId}")
     public String getRemainStockByCache(@PathVariable int goodsId) {
         Integer stock;
         try {

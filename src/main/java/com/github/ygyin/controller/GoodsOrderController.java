@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
@@ -18,7 +17,7 @@ import static com.github.ygyin.config.RabbitMqConfig.DELETE_QUEUE;
 import static com.github.ygyin.config.RabbitMqConfig.ORDER_QUEUE;
 
 
-@Controller
+@RestController
 public class GoodsOrderController {
     @Autowired
     private GoodsOrderService orderService;
@@ -34,8 +33,15 @@ public class GoodsOrderController {
     private static final Logger MY_LOG = LoggerFactory.getLogger(GoodsOrderController.class);
 
     private static final String SECKILL_SUCCEED = "Seckill Request Succeed";
+    private static final String SECKILL_SUCCEED_TO_USER = "Congratulations, the purchase is successful";
     private static final String SECKILL_FAIL = "Seckill Request failed, server is in busy...";
+    private static final String SECKILL_FAIL_TO_USER = "Sorry, your order has not been generated. Please wait...";
     private static final String OUT_OF_STOCK = "Seckill Request failed, run out of remaining stock";
+    private static final String PURCHASE_WITHOUT_HASH = "The user doesn't get the hash before purchase";
+    private static final String CHECK_STOCK = "The user has not snapped up any items. To check if there is any stock in the cache";
+
+
+
 
 
 /*
@@ -46,7 +52,7 @@ public class GoodsOrderController {
      * @return String of id
      * /
     @RequestMapping("/createWrongOrder/{goodsId}")
-    @ResponseBody
+
     public String createWrongOrder(@PathVariable int goodsId) {
         int id = 0;
         try {
@@ -59,8 +65,7 @@ public class GoodsOrderController {
     }
 */
 
-    @RequestMapping("/createOccOrder/{goodsId}")
-    @ResponseBody
+    @GetMapping("/createOccOrder/{goodsId}")
     public String createOccOrder(@PathVariable int goodsId) {
         // 阻塞式获取令牌：请求进来后，若令牌桶内没有足够令牌，阻塞并等待令牌发放
         // MY_LOG.info("Waiting for a while: " + limiter.acquire());
@@ -88,8 +93,7 @@ public class GoodsOrderController {
      * @param goodsId
      * @return
      */
-    @RequestMapping("/createPccOrder/{goodsId}")
-    @ResponseBody
+    @GetMapping("/createPccOrder/{goodsId}")
     public String createPccOrder(@PathVariable int goodsId) {
         int stock = 0;
         try {
@@ -109,8 +113,7 @@ public class GoodsOrderController {
      * @param goodsId
      * @return
      */
-    @RequestMapping(value = "/getHash", method = {RequestMethod.GET})
-    @ResponseBody
+    @GetMapping("/getHash")
     public String getHash(@RequestParam(value = "userId") Integer userId,
                           @RequestParam(value = "goodsId") Integer goodsId) {
         String hash;
@@ -131,8 +134,7 @@ public class GoodsOrderController {
      * @param hash
      * @return
      */
-    @RequestMapping(value = "/createOrderWithHash", method = {RequestMethod.GET})
-    @ResponseBody
+    @GetMapping("/createOrderWithHash")
     public String createOrderWithHash(@RequestParam(value = "userId") Integer userId,
                                       @RequestParam(value = "goodsId") Integer goodsId,
                                       @RequestParam(value = "hash") String hash) {
@@ -149,8 +151,7 @@ public class GoodsOrderController {
         return String.format("Purchase successfully, remain stock: %d", stock);
     }
 
-    @RequestMapping(value = "/createOrderWithHashAndAccessLimit", method = {RequestMethod.GET})
-    @ResponseBody
+    @GetMapping("/createOrderWithHashAndAccessLimit")
     public String createOrderWithHashAndAccessLimit(@RequestParam(value = "userId") Integer userId,
                                                     @RequestParam(value = "goodsId") Integer goodsId,
                                                     @RequestParam(value = "hash") String hash) {
@@ -180,8 +181,7 @@ public class GoodsOrderController {
      * @param goodsId
      * @return
      */
-    @RequestMapping("/createOrderWithCache/{goodsId}")
-    @ResponseBody
+    @GetMapping("/createOrderWithCache/{goodsId}")
     public String createOrderWithCache(@PathVariable int goodsId) {
         // The number of remaining stock
         int stock;
@@ -214,8 +214,7 @@ public class GoodsOrderController {
      * @param goodsId
      * @return
      */
-    @RequestMapping(value = "createOrderWithMQ", method = {RequestMethod.GET})
-    @ResponseBody
+    @GetMapping("createOrderWithMQ")
     public String createOrderWithMQ(@RequestParam(value = "userId") Integer userId,
                                     @RequestParam(value = "goodsId") Integer goodsId) {
         try {
@@ -228,7 +227,7 @@ public class GoodsOrderController {
 
             // Not snapped up, check whether the remaining stock is in the cache
             // If not, it will check the DB for remaining stock
-            MY_LOG.info("The user has not snapped up any items. To check if there is any stock in the cache");
+            MY_LOG.info(CHECK_STOCK);
             Integer stockRemain = stockService.getStockRemain(goodsId);
             if (stockRemain == 0)
                 return OUT_OF_STOCK;
@@ -246,6 +245,66 @@ public class GoodsOrderController {
             MY_LOG.error("API createOrderWithMQ: Asynchronously processing order exceptions", e);
             return SECKILL_FAIL;
         }
+    }
+
+    @GetMapping("createOrderWithMQV2")
+    public String createOrderWithMQV2(@RequestParam(value = "userId") Integer userId,
+                                      @RequestParam(value = "goodsId") Integer goodsId,
+                                      @RequestParam(value = "hash") String hash) {
+        try {
+            // Check if the user has already placed an order in the cache
+//            Boolean orderExist = orderService.checkOrderInCache(userId, goodsId);
+//            if (orderExist != null && orderExist) {
+//                MY_LOG.info("The user has already snapped it up");
+//                return "The user has already snapped it up";
+//            }
+            if (!orderService.verifyUserHash(userId, goodsId, hash)) {
+                MY_LOG.info(PURCHASE_WITHOUT_HASH);
+                return PURCHASE_WITHOUT_HASH;
+            }
+            // Not snapped up, check whether the remaining stock is in the cache
+            // If not, it will check the DB for remaining stock
+            MY_LOG.info(CHECK_STOCK);
+            Integer stockRemain = stockService.getStockRemain(goodsId);
+            if (stockRemain == 0)
+                return OUT_OF_STOCK;
+
+            // It has remaining stock
+            // 将 userId & goodId 封装为消息体传给 MQ 处理
+            // 此时有库存为查缓存中的结论，可能有脏数据，MQ 会再次查表验证库存
+            MY_LOG.info("Goods [{}] has remaining stock: [{}]", goodsId, stockRemain);
+            JSONObject jsonObj = new JSONObject();
+            jsonObj.put("userId", userId);
+            jsonObj.put("goodsId", goodsId);
+            sendMsgToOrderQueue(jsonObj.toJSONString());
+            return SECKILL_SUCCEED;
+        } catch (Exception e) {
+            MY_LOG.error("API createOrderWithMQV2: Asynchronously processing order exceptions", e);
+            return SECKILL_FAIL;
+        }
+    }
+
+    /**
+     * 该接口用于给前端不断请求检查缓存中是否已经生成用户对应的商品订单
+     *
+     * @param userId
+     * @param goodsId
+     * @return
+     */
+    @GetMapping("/checkOrderInCacheByUserId")
+    public String checkOrderInCacheByUserId(@RequestParam(value = "userId") Integer userId,
+                                            @RequestParam(value = "goodsId") Integer goodsId) {
+        // check whether the user has already had order in the cache
+
+        try {
+            Boolean orderExist = orderService.checkOrderInCache(userId, goodsId);
+            if (orderExist != null && orderExist)
+                return SECKILL_SUCCEED_TO_USER;
+        } catch (Exception e) {
+            MY_LOG.error("order exceptions", e);
+        }
+        return SECKILL_FAIL_TO_USER;
+
     }
 
     /**
