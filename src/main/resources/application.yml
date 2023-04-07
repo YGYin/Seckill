@@ -1,9 +1,10 @@
 server:
   port: 8080
   tomcat:
-    threads:
-      max: 10000
     max-connections: 10000
+    threads:
+      max: 2000
+    accept-count: 500
 
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
