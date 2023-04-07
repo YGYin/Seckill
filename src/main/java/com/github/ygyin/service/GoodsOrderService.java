@@ -24,6 +24,16 @@ public interface GoodsOrderService {
     int createHashOrder(Integer userId, Integer goodsId, String hash) throws Exception;
 
     /**
+     * To verify whether the user get the hash before they purchase the goods
+     *
+     * @param userId
+     * @param goodsId
+     * @param hash
+     * @return The boolean value of cache hit
+     */
+    boolean verifyUserHash(Integer userId, Integer goodsId, String hash);
+
+    /**
      * Check whether the user already has an order in the cache
      *
      * @param userId

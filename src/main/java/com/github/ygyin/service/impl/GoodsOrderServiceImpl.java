@@ -113,6 +113,19 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     }
 
     @Override
+    public boolean verifyUserHash(Integer userId, Integer goodsId, String hash) {
+        String hashKey = RedisSaltKey.HASH_KEY.getKey() + "_" + userId + "_" + goodsId;
+        String hashInRedis = redisTemplate.opsForValue().get(hashKey);
+        if (!hash.equals(hashInRedis)) {
+            MY_LOG.error("Hash value is not as the same as it in Redis");
+            return false;
+        }
+        MY_LOG.info("Hash value verified successfully");
+        return true;
+    }
+
+
+    @Override
     public Boolean checkOrderInCache(Integer userId, Integer goodsId) throws Exception {
         String hashKey = RedisSaltKey.ORDER_EXISTED_KEY.getKey() + "_" + goodsId;
         MY_LOG.info("Check whether User ID [{}] has snapped up the goods ID [{}]. " +
@@ -123,7 +136,12 @@ public class GoodsOrderServiceImpl implements GoodsOrderService {
     @Override
     public void createOrderByMQ(Integer userId, Integer goodsId) throws Exception {
         GoodsStock stock;
-        stock = reviewStock(goodsId);
+        try {
+            stock = reviewStock(goodsId);
+        } catch (Exception e) {
+            MY_LOG.info("Already ran out of stock!");
+            return;
+        }
 
         // Update the remaining stock by occ
         boolean stockIsUpdate = goodsSaleWithOcc(stock);
